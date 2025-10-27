@@ -15,13 +15,12 @@ filebeat.inputs:
       log_type: error
     fields_under_root: true
 
-output.http:
+output.elasticsearch:
   hosts: ["http://golang-collector:8080"]
   path: "/collect"
-  content_type: "application/json"
+  protocol: "http"  # Chỉ định rõ là dùng http
   bulk_max_size: 1
-  headers:
-    Content-Type: "application/json"
+  ssl.verification_mode: none # Tắt kiểm tra SSL vì bạn dùng http
 
 logging:
   level: info
