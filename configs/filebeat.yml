@@ -1,0 +1,32 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/nginx/access.log
+    fields:
+      log_type: access
+    fields_under_root: true
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/nginx/error.log
+    fields:
+      log_type: error
+    fields_under_root: true
+
+output.http:
+  hosts: ["http://golang-collector:8080"]
+  path: "/collect"
+  content_type: "application/json"
+  bulk_max_size: 1
+  headers:
+    Content-Type: "application/json"
+
+logging:
+  level: info
+  to_files: true
+  files:
+    path: /var/log/filebeat
+    name: filebeat
+    keepfiles: 7
