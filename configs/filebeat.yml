@@ -19,7 +19,8 @@ output.elasticsearch:
   hosts: ["http://golang-collector:8080"]
   path: "/collect"
   protocol: "http"  # Chỉ định rõ là dùng http
-  bulk_max_size: 1
+  bulk_size: 50
+  compression_level: 0 # Tắt nén để giảm tải cho golang-collector
   ssl.verification_mode: none # Tắt kiểm tra SSL vì bạn dùng http
 
 logging:

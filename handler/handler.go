@@ -10,9 +10,10 @@ import (
 	"net/http"
 )
 
-// Struct để giải mã JSON từ Filebeat.
+// Struct để giải mã JSON từ Filebeat (data part của Bulk API).
 type FilebeatEvent struct {
 	Message string `json:"message"`
+	LogType string `json:"log_type"`
 }
 
 // Struct cho response của Elasticsearch-compatible API
@@ -24,8 +25,8 @@ type ElasticsearchResponse struct {
 }
 
 func ReceiveLog(w http.ResponseWriter, r *http.Request) {
-	// Nếu là GET request, trả về thông tin health check (giả lập Elasticsearch)
-	if r.Method == http.MethodGet {
+	// Xử lý GET hoặc HEAD request (Health Check)
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "application/json")
 		response := ElasticsearchResponse{
 			Tagline: "You Know, for Search",
@@ -35,40 +36,51 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Xử lý POST request như cũ
+	// Xử lý POST request
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read body", http.StatusBadRequest)
-		return
-	}
 	defer r.Body.Close()
 
-	// Khai báo mảng để hứng các sự kiện
-	var events []FilebeatEvent
-	if err := json.Unmarshal(body, &events); err != nil {
-		log.Println("Failed to unmarshal Filebeat JSON:", err)
-		http.Error(w, "Failed to parse body as JSON", http.StatusBadRequest)
-		return
+	decoder := json.NewDecoder(r.Body)
+	var receivedEvents int
+
+	// Loop để đọc các đối tượng JSON liên tiếp (NDJSON/Bulk API format)
+	for {
+		// 1. Đọc Metadata (ví dụ: { "index": {} })
+		var meta map[string]interface{}
+		if err := decoder.Decode(&meta); err == io.EOF {
+			break // Kết thúc stream
+		} else if err != nil {
+			log.Println("Failed to decode Bulk API metadata:", err)
+			break
+		}
+
+		// 2. Đọc Data (Log Event)
+		var event FilebeatEvent
+		if err := decoder.Decode(&event); err == io.EOF {
+			log.Println("Unexpected EOF after reading metadata.")
+			break
+		} else if err != nil {
+			log.Println("Failed to decode Bulk API event data:", err)
+			break
+		}
+
+		receivedEvents++
+		// Xử lý từng event
+		go controller.ProcessLog(event.Message, event.LogType)
 	}
 
-	log.Printf("Received %d log events", len(events))
+	log.Printf("Received %d log events", receivedEvents)
 
-	// Xử lý từng event
-	for _, event := range events {
-		go controller.ProcessLog(event.Message)
-	}
-
-	// Trả về JSON response giống Elasticsearch
+	// Trả về JSON response giống Elasticsearch (200 OK)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"took":   1,
-		"errors": false,
+		"errors": false, // Báo không có lỗi để Filebeat không retry
 		"items":  []interface{}{},
 	})
 }
