@@ -1,14 +1,13 @@
 // parser/regex_parse.go
-
 package parser
 
 import (
 	"collectlogupdate/model"
 	"regexp"
+	"strconv"
+	"time"
 )
 
-// Regex đã được sửa:
-// Khớp IP - - [TIMESTAMP] "METHOD PATH PROTOCOL" STATUS SIZE "REFERER" "AGENT"
 var LogRegex = regexp.MustCompile(`(?P<cline_ip>\S+) - - \[(?P<timestamp>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) \S+" (?P<status>\d{3}) (?P<size>\d+) "(?P<referer>[^"]*)" "(?P<agent>[^"]*)"`)
 
 func ParserAccessLog(line string) (*model.Log, bool) {
@@ -16,15 +15,24 @@ func ParserAccessLog(line string) (*model.Log, bool) {
 	if matches == nil {
 		return nil, false
 	}
-	// Chỉ mục (index) của matches[] được tính dựa trên Regex (1 = IP, 2 = Timestamp, v.v.)
+
+	// Parse timestamp từ format nginx: 02/Jan/2006:15:04:05 -0700
+	timestamp, err := time.Parse("02/Jan/2006:15:04:05 -0700", matches[2])
+	if err != nil {
+		// Fallback to current time if parse fails
+		timestamp = time.Now()
+	}
+
+	status, _ := strconv.Atoi(matches[5])
+	size, _ := strconv.Atoi(matches[6])
+
 	return &model.Log{
-		ClineIP:   matches[1], // Index 1: IP
-		Timestamp: matches[2], // Index 2: Timestamp
+		Timestamp: timestamp,
+		ClientIP:  matches[1],
 		Method:    matches[3],
 		Path:      matches[4],
-		Status:    matches[5],
-		Size:      matches[6],
-		// Index 7 là Referer (không có trong model.Log) nên ta bỏ qua
-		Agent: matches[8], // Index 8: Agent
+		Status:    status,
+		Size:      size,
+		Agent:     matches[8],
 	}, true
 }
