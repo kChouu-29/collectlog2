@@ -1,10 +1,11 @@
-// handler/handler.go
+//handler/handler.go
 
 package handler
 
 import (
 	"collectlogupdate/controller"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -47,12 +48,15 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var receivedEvents int
 
+	// Tạo items array cho response
+	items := []map[string]interface{}{}
+
 	// Loop để đọc các đối tượng JSON liên tiếp (NDJSON/Bulk API format)
 	for {
-		// 1. Đọc Metadata (ví dụ: { "index": {} })
+		// 1. Đọc Metadata
 		var meta map[string]interface{}
 		if err := decoder.Decode(&meta); err == io.EOF {
-			break // Kết thúc stream
+			break
 		} else if err != nil {
 			log.Println("Failed to decode Bulk API metadata:", err)
 			break
@@ -69,18 +73,29 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 		}
 
 		receivedEvents++
+
 		// Xử lý từng event
 		go controller.ProcessLog(event.Message, event.LogType)
+
+		// QUAN TRỌNG: Thêm item vào response để Filebeat biết đã xử lý thành công
+		items = append(items, map[string]interface{}{
+			"index": map[string]interface{}{
+				"_index": "logs",
+				"_id":    fmt.Sprintf("%d", receivedEvents),
+				"status": 201,
+				"result": "created",
+			},
+		})
 	}
 
-	log.Printf("Received %d log events", receivedEvents)
+	log.Printf("Batch completed: Received %d log events", receivedEvents)
 
-	// Trả về JSON response giống Elasticsearch (200 OK)
+	// Trả về JSON response giống Elasticsearch
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"took":   1,
-		"errors": false, // Báo không có lỗi để Filebeat không retry
-		"items":  []interface{}{},
+		"errors": false,
+		"items":  items, // Phải trả về items để Filebeat biết đã xử lý
 	})
 }
