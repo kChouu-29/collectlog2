@@ -1,0 +1,143 @@
+openapi: 3.0.0
+info:
+  title: Log Collector API
+  description: API thu thập và xử lý logs từ Filebeat, tương thích với định dạng Elasticsearch Bulk API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Máy chủ phát triển
+
+paths:
+  /:
+    get:
+      summary: Kiểm tra trạng thái
+      description: Trả về trạng thái hoạt động của dịch vụ theo định dạng tương thích Elasticsearch
+      responses:
+        '200':
+          description: Dịch vụ đang hoạt động tốt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+    post:
+      summary: Nhận logs (Bulk API)
+      description: Nhận và xử lý logs theo định dạng Elasticsearch Bulk API
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema:
+              $ref: '#/components/schemas/BulkRequest'
+      responses:
+        '200':
+          description: Logs đã được xử lý thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkResponse'
+        '405':
+          description: Phương thức không được phép
+  
+  /collect:
+    get:
+      summary: Kiểm tra trạng thái (Đường dẫn thay thế)
+      description: Endpoint thay thế để kiểm tra trạng thái
+      responses:
+        '200':
+          description: Dịch vụ đang hoạt động tốt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+    post:
+      summary: Nhận logs (Đường dẫn thay thế)
+      description: Endpoint thay thế để nhận logs theo định dạng Elasticsearch Bulk API
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema:
+              $ref: '#/components/schemas/BulkRequest'
+      responses:
+        '200':
+          description: Logs đã được xử lý thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkResponse'
+        '405':
+          description: Phương thức không được phép
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        version:
+          type: object
+          properties:
+            number:
+              type: string
+              example: "8.15.0"
+        tagline:
+          type: string
+          example: "You Know, for Search"
+    
+    FilebeatEvent:
+      type: object
+      required:
+        - message
+        - log_type
+      properties:
+        message:
+          type: string
+          description: Nội dung của log message
+        log_type:
+          type: string
+          description: Loại log đang được xử lý
+    
+    BulkRequest:
+      type: string
+      description: Yêu cầu bulk được định dạng NDJSON chứa metadata và các đối tượng log event xen kẽ nhau
+      example: |
+        {"index": {"_index": "logs"}}
+        {"message": "Nội dung log mẫu", "log_type": "nginx"}
+        {"index": {"_index": "logs"}}
+        {"message": "Một bản ghi log khác", "log_type": "application"}
+    
+    BulkResponse:
+      type: object
+      properties:
+        took:
+          type: integer
+          description: Thời gian xử lý (milliseconds)
+          example: 1
+        errors:
+          type: boolean
+          description: Trạng thái lỗi của toàn bộ yêu cầu
+          example: false
+        items:
+          type: array
+          description: Danh sách kết quả xử lý từng log
+          items:
+            type: object
+            properties:
+              index:
+                type: object
+                properties:
+                  _index:
+                    type: string
+                    description: Tên index lưu trữ log
+                    example: "logs"
+                  _id:
+                    type: string
+                    description: ID của bản ghi log
+                    example: "1"
+                  status:
+                    type: integer
+                    description: Mã trạng thái HTTP
+                    example: 201
+                  result:
+                    type: string
+                    description: Kết quả xử lý
+                    example: "created"
