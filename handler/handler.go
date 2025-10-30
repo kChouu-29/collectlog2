@@ -3,8 +3,8 @@
 package handler
 
 import (
-	"collectlogupdate/controller"
 	"collectlogupdate/model"
+	"collectlogupdate/worker"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,10 +12,10 @@ import (
 	"net/http"
 )
 
-// Struct để giải mã JSON từ Filebeat (data part của Bulk API).
+
 
 func ReceiveLog(w http.ResponseWriter, r *http.Request) {
-	// Xử lý GET hoặc HEAD request (Health Check)
+	
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "application/json")
 		response := model.ElasticsearchResponse{
@@ -26,7 +26,7 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Xử lý POST request
+	
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -37,12 +37,12 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var receivedEvents int
 
-	// Tạo items array cho response
+	
 	items := []map[string]interface{}{}
 
-	// Loop để đọc các đối tượng JSON liên tiếp (NDJSON/Bulk API format)
+	
 	for {
-		// 1. Đọc Metadata
+		
 		var meta map[string]interface{}
 		if err := decoder.Decode(&meta); err == io.EOF {
 			break
@@ -51,7 +51,7 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// 2. Đọc Data (Log Event)
+		
 		var event model.FilebeatEvent
 		if err := decoder.Decode(&event); err == io.EOF {
 			log.Println("Unexpected EOF after reading metadata.")
@@ -63,15 +63,23 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 
 		receivedEvents++
 
-		// Xử lý từng event
-		go controller.ProcessLog(event.Message, event.LogType)
+		
+		job := model.FilebeatEvent{
+			Message: event.Message,
+			LogType: event.LogType,
+		}
+
+		
+		worker.JobQueue <- job
+
+		// ======================
 
 		// QUAN TRỌNG: Thêm item vào response để Filebeat biết đã xử lý thành công
 		items = append(items, map[string]interface{}{
 			"index": map[string]interface{}{
 				"_index": "logs",
 				"_id":    fmt.Sprintf("%d", receivedEvents),
-				"status": 201,
+				"status": 201, // 201 = Created
 				"result": "created",
 			},
 		})

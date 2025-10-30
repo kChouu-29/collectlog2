@@ -16,7 +16,7 @@ type FilebeatEvent struct {
 	LogType string `json:"log_type"`
 }
 
-// Struct cho response của Elasticsearch-compatible API
+
 type ElasticsearchResponse struct {
 	Version struct {
 		Number string `json:"number"`
