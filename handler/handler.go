@@ -4,6 +4,7 @@ package handler
 
 import (
 	"collectlogupdate/controller"
+	"collectlogupdate/model"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,24 +13,12 @@ import (
 )
 
 // Struct để giải mã JSON từ Filebeat (data part của Bulk API).
-type FilebeatEvent struct {
-	Message string `json:"message"`
-	LogType string `json:"log_type"`
-}
-
-// Struct cho response của Elasticsearch-compatible API
-type ElasticsearchResponse struct {
-	Version struct {
-		Number string `json:"number"`
-	} `json:"version"`
-	Tagline string `json:"tagline"`
-}
 
 func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 	// Xử lý GET hoặc HEAD request (Health Check)
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		w.Header().Set("Content-Type", "application/json")
-		response := ElasticsearchResponse{
+		response := model.ElasticsearchResponse{
 			Tagline: "You Know, for Search",
 		}
 		response.Version.Number = "8.15.0"
@@ -63,7 +52,7 @@ func ReceiveLog(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 2. Đọc Data (Log Event)
-		var event FilebeatEvent
+		var event model.FilebeatEvent
 		if err := decoder.Decode(&event); err == io.EOF {
 			log.Println("Unexpected EOF after reading metadata.")
 			break

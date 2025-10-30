@@ -11,3 +11,15 @@ type Log struct {
 	Size      int    `json:"http.response.body.bytes"`
 	Agent     string `json:"agent"`
 }
+type FilebeatEvent struct {
+	Message string `json:"message"`
+	LogType string `json:"log_type"`
+}
+
+// Struct cho response của Elasticsearch-compatible API
+type ElasticsearchResponse struct {
+	Version struct {
+		Number string `json:"number"`
+	} `json:"version"`
+	Tagline string `json:"tagline"`
+}
